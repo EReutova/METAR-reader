@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create *)",
+      "Bash(npx create-vite@latest . --template react)",
+      "Bash(npm install *)",
+      "Bash(curl *)",
+      "Bash(node *)",
+      "Read(//Users/reutovaevgeniya/Library/Caches/ms-playwright/**)",
+      "Bash(npx --yes playwright@1.61.1 --version)"
+    ]
+  }
+}

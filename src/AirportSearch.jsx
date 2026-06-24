@@ -105,8 +105,20 @@ export default function AirportSearch({ onSelect }) {
           type="text"
           value={displayValue}
           onChange={(e) => {
-            setSelected(null)
-            setQuery(e.target.value)
+            // If an airport is currently selected, the input's DOM value still contains
+            // the display label (e.g. "JFK — New York") when the first keypress fires —
+            // React hasn't re-rendered to the empty string yet. Strip the stale prefix
+            // so the user's new characters become a fresh query instead of being appended.
+            if (selected) {
+              const prefix = `${selected.iata ?? selected.icao} — ${selected.city}`
+              const stripped = e.target.value.startsWith(prefix)
+                ? e.target.value.slice(prefix.length)
+                : e.target.value
+              setSelected(null)
+              setQuery(stripped)
+            } else {
+              setQuery(e.target.value)
+            }
           }}
           onFocus={() => {
             if (selected) {
