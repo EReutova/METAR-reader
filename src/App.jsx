@@ -4,10 +4,15 @@ import AirportSearch from './AirportSearch'
 import airports from './airports.json'
 import './App.css'
 
+// Pre-build a lookup map so WeatherDisplay can resolve ICAO → airport info in O(1)
 const AIRPORT_MAP = Object.fromEntries(airports.map(a => [a.icao, a]))
 
+/**
+ * Great-circle distance between two coordinates using the Haversine formula.
+ * Returns distance in kilometers.
+ */
 function haversineKm(lat1, lon1, lat2, lon2) {
-  const R = 6371
+  const R = 6371 // Earth's mean radius in km
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLon = (lon2 - lon1) * Math.PI / 180
   const a = Math.sin(dLat / 2) ** 2 +
@@ -16,6 +21,10 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+/**
+ * Finds the closest airport in our dataset to the given coordinates.
+ * Airports without lat/lon are skipped.
+ */
 function nearestAirport(lat, lon) {
   let best = null, bestDist = Infinity
   for (const a of airports) {
@@ -26,6 +35,11 @@ function nearestAirport(lat, lon) {
   return best
 }
 
+/**
+ * Resolves the user's approximate location via IP geolocation (ipinfo.io),
+ * then returns the nearest airport from our dataset.
+ * Returns null if the request fails or location is unavailable.
+ */
 async function detectNearestAirport() {
   const res = await fetch('https://ipinfo.io/json')
   if (!res.ok) return null
@@ -35,6 +49,11 @@ async function detectNearestAirport() {
   return nearestAirport(lat, lon)
 }
 
+/**
+ * Displays a circular compass rose with an arrow pointing toward the
+ * direction the wind is coming FROM (meteorological convention).
+ * The CSS arrow starts pointing North (0°) and rotates clockwise.
+ */
 function WindCompass({ degrees }) {
   if (degrees == null) return null
   return (
@@ -54,6 +73,7 @@ function WindCompass({ degrees }) {
   )
 }
 
+/** A small tile showing a single weather measurement (temperature, humidity, etc.) */
 function StatCard({ icon, label, value, sub }) {
   return (
     <div className="stat-card">
@@ -65,11 +85,19 @@ function StatCard({ icon, label, value, sub }) {
   )
 }
 
+/**
+ * Renders the full decoded weather report for one airport.
+ *
+ * @param {object} parsed - Output of parseMetar()
+ */
 function WeatherDisplay({ parsed }) {
   const emoji = getWeatherEmoji(parsed)
   const cat = parsed.flightCategory
+  // Look up human-readable airport details from our local dataset
   const airportInfo = AIRPORT_MAP[parsed.station]
 
+  // If there are no active weather phenomena, fall back to the sky condition
+  // summary. If that's also absent, label the sky as clear.
   const skySummary = parsed.skyConditions.length
     ? parsed.skyConditions.join('; ')
     : parsed.weather.length ? null : 'Clear skies'
@@ -85,17 +113,20 @@ function WeatherDisplay({ parsed }) {
         <div className="weather-emoji">{emoji}</div>
         <div className="weather-station">
           <h2>{parsed.station}</h2>
+          {/* Show the full airport name when it exists in our local dataset */}
           {airportInfo && (
             <p className="airport-name">
               {airportInfo.name}
               {airportInfo.city ? ` · ${airportInfo.city}` : ''}
               {airportInfo.state ? `, ${airportInfo.state}` : ''}
+              {/* Omit country label for US airports to reduce visual noise */}
               {airportInfo.country && airportInfo.country !== 'US' ? ` · ${airportInfo.country}` : ''}
             </p>
           )}
           {parsed.time && <p className="obs-time">Observed at {parsed.time}</p>}
           {parsed.isAuto && <span className="badge">Automated Station</span>}
         </div>
+        {/* Flight category badge (VFR / MVFR / IFR / LIFR) with color coding */}
         <div
           className="flight-cat"
           style={{ background: cat.color }}
@@ -151,6 +182,7 @@ function WeatherDisplay({ parsed }) {
             value={parsed.visibility.text}
           />
         )}
+        {/* Wind gets a wider card to accommodate the compass rose */}
         {parsed.wind && (
           <div className="stat-card wind-card">
             <div className="stat-icon">💨</div>
@@ -163,6 +195,7 @@ function WeatherDisplay({ parsed }) {
         )}
       </div>
 
+      {/* Collapsible raw METAR string for users who want the source data */}
       <details className="raw-metar">
         <summary>Raw METAR</summary>
         <code>{parsed.raw}</code>
@@ -171,12 +204,24 @@ function WeatherDisplay({ parsed }) {
   )
 }
 
+/**
+ * Root application component.
+ *
+ * On mount it attempts to auto-select the nearest airport using IP
+ * geolocation, falling back to KSFO (San Francisco) if that fails.
+ * The user can then search for any airport using the combobox.
+ */
 export default function App() {
   const [currentCode, setCurrentCode] = useState(null)
   const [parsed, setParsed] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  /**
+   * Fetches a live METAR for the given ICAO code through the Vite dev-proxy
+   * (configured in vite.config.js to forward /api/metar → aviationweather.gov).
+   * The proxy is needed because the Aviation Weather API does not send CORS headers.
+   */
   const fetchMetar = useCallback(async (icao) => {
     if (!icao) return
     setCurrentCode(icao)
@@ -193,6 +238,8 @@ export default function App() {
         throw new Error(`No METAR data found for "${icao}". Check the airport code and try again.`)
       }
 
+      // The API can return multiple lines when querying several stations;
+      // we only requested one, so the first line is always the one we want.
       setParsed(parseMetar(text.split('\n')[0].trim()))
     } catch (err) {
       setError(err.message)
@@ -201,6 +248,8 @@ export default function App() {
     }
   }, [])
 
+  // On first render, detect the user's location and load their nearest airport.
+  // KSFO is the fallback if geolocation is unavailable or the request fails.
   useEffect(() => {
     detectNearestAirport()
       .then(airport => fetchMetar(airport?.icao ?? 'KSFO'))
