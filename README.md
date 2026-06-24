@@ -55,7 +55,7 @@ This app decodes that into something readable:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/metar-reader.git
+git clone https://github.com/EReutova/METAR-reader
 cd metar-reader
 
 # Install dependencies
