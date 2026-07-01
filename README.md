@@ -43,6 +43,7 @@ This app decodes that into something readable:
 | Geolocation | [ipinfo.io](https://ipinfo.io) (free tier, no API key needed) |
 | Styling | Plain CSS (no UI library) |
 | METAR parsing | Custom parser (`src/metarParser.js`) |
+| Testing | Vitest + React Testing Library |
 
 ## Getting started
 
@@ -77,16 +78,75 @@ The production-ready files are output to the `dist/` folder and can be served by
 
 > **Note:** The Vite dev server includes a proxy that forwards `/api/metar` requests to `aviationweather.gov` to work around browser CORS restrictions. For production deployments you will need to replicate this with a reverse proxy (nginx, Caddy) or a small serverless function (Vercel, Netlify Edge, Cloudflare Workers).
 
+## Testing
+
+The project has 92 automated tests split across two files.
+
+| File | What it tests |
+|---|---|
+| `src/metarParser.test.js` | Pure unit tests for the METAR parser — every field, format, and edge case |
+| `src/App.test.jsx` | React component integration tests — rendering, search UI, error states |
+
+### Coverage
+
+| File | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| `metarParser.js` | 97% | 89% | 100% | 99% |
+| `App.jsx` | 89% | 78% | 92% | 96% |
+| `AirportSearch.jsx` | 87% | 83% | 96% | 86% |
+| **All files** | **93%** | **85%** | **96%** | **95%** |
+
+The main parser (`metarParser.js`) is the most thoroughly covered at 97% statements and 100% function coverage. The small gaps across all files are edge cases: network failure fallbacks, arrow-key boundary clamping at the top/bottom of the dropdown, and the focus-while-typing race condition handler.
+
+### Run the tests
+
+```bash
+# Run all tests once and exit
+npm test
+
+# Watch mode — re-runs on every file save (great during development)
+npm run test:watch
+
+# Run with coverage report
+npm run test:coverage
+```
+
+### What the parser tests cover
+
+- **Wind** — calm (`00000KT`), directional with knots→mph conversion, variable direction (`VRB`), gusts, varying wind range (`280V350`)
+- **Visibility** — US statute miles (`10SM`, `1/2SM`, `1 1/2SM`, `P6SM`), CAVOK, ICAO metric (`9999`, `0800`)
+- **Weather phenomena** — light/moderate/heavy rain, thunderstorms, freezing fog, blowing snow, mist, nearby thunderstorm (`VCTS`), multiple simultaneous codes
+- **Sky conditions** — CLR, SKC, NCD, NSC, FEW/SCT/BKN/OVC with heights, cumulonimbus (CB) and towering cumulus (TCU) flags
+- **Temperature & dew point** — positive and negative (M-prefix) values, °C→°F conversion
+- **Humidity** — Magnus formula derivation from dew point, 100% when temp equals dew point
+- **Altimeter** — US A-format (inHg) and ICAO Q-format (hPa), bidirectional conversion
+- **Flight category** — VFR, MVFR, IFR, LIFR classification with ceiling and visibility thresholds
+- **International METARs** — European and Asian stations with ICAO format differences
+
+### What the component tests cover
+
+- Auto-location loads on startup
+- Temperature, dew point, wind, visibility, and altimeter values render correctly
+- Flight category badge appears with the right color
+- Dropdown opens, navigates with arrow keys, selects on Enter, closes on Escape
+- Clear (×) button empties the input
+- "No airports found" message appears for unrecognised input
+- Error card appears for invalid airport codes
+- International airports show hPa altimeter
+
 ## Project structure
 
 ```
 src/
-├── App.jsx           # Root component, location detection, METAR fetch logic
-├── AirportSearch.jsx # Searchable combobox with keyboard navigation
-├── metarParser.js    # Standalone METAR string parser
-├── airports.json     # ~300 airports with ICAO, IATA, name, city, and coordinates
-├── App.css           # Component styles
-└── index.css         # Global CSS variables and reset
+├── App.jsx                # Root component, location detection, METAR fetch logic
+├── App.test.jsx           # React component integration tests
+├── AirportSearch.jsx      # Searchable combobox with keyboard navigation
+├── metarParser.js         # Standalone METAR string parser
+├── metarParser.test.js    # Parser unit tests (74 tests)
+├── airports.json          # ~300 airports with ICAO, IATA, name, city, and coordinates
+├── App.css                # Component styles
+├── index.css              # Global CSS variables and reset
+└── test-setup.js          # Vitest setup (jest-dom matchers)
 ```
 
 ## Data sources

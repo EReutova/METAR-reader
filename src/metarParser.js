@@ -247,7 +247,8 @@ export function parseMetar(raw) {
   }
 
   // Weather phenomena
-  const wxPattern = /^([-+]|VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(RA|DZ|SN|SG|IC|PL|GR|GS|UP|FG|BR|HZ|VA|DU|SA|PY|FU|SQ|PO|DS|SS|FC)+$/
+  // TS/FC/SQ/PO/DS/SS can appear as standalone phenomena without a precipitation suffix
+  const wxPattern = /^([-+]|VC)?(MI|PR|BC|DR|BL|SH|TS|FZ)?(RA|DZ|SN|SG|IC|PL|GR|GS|UP|FG|BR|HZ|VA|DU|SA|PY|FU|SQ|PO|DS|SS|FC|TS)+$/
   while (i < tokens.length && wxPattern.test(tokens[i])) {
     result.weather.push(decodeWeather(tokens[i++]))
   }
